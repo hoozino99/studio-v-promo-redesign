@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portfolio | Studio V</title>
+  <meta name="description" content="Studio V 포트폴리오. 영화, 드라마, 광고, 브랜드 필름, 이벤트, 라이브 콘텐츠 작업 사례.">
+  <link rel="stylesheet" href="./assets/styles.css?v=studio-v-grounded-1">
+  <link rel="icon" href="data:,">
+</head>
+<body data-page="portfolio">
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <header class="site-header" data-header>
+    <a class="brand" href="./index.html" aria-label="Studio V 홈">
+      <strong>Studio V</strong>
+      <span>Virtual Production Stage</span>
+    </a>
+    <nav class="nav-links" aria-label="주요 메뉴">
+      <a href="./index.html">Studio</a>
+      <a href="./tour.html">3D Tour</a>
+      <a href="./portfolio.html" aria-current="page">Portfolio</a>
+      <a href="./showreel.html">Showreel</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
+    <a class="header-cta" href="./contact.html">Inquiry</a>
+    <button class="menu-button" type="button" data-menu-button aria-label="메뉴 열기">
+      <span></span>
+      <span></span>
+    </button>
+  </header>
+
+  <div class="mobile-menu" data-mobile-menu>
+    <a href="./index.html">Studio</a>
+    <a href="./tour.html">3D Tour</a>
+    <a href="./portfolio.html">Portfolio</a>
+    <a href="./showreel.html">Showreel</a>
+    <a href="./contact.html">Contact</a>
+  </div>
+
+  <main>
+    <section class="sub-hero">
+      <img src="./assets/images/overview-4.jpg" alt="" fetchpriority="high">
+      <div class="sub-hero-copy reveal">
+        <p class="section-kicker">Portfolio</p>
+        <h1>Production Use Cases</h1>
+        <p>영화/드라마, 광고, 이벤트 기준으로 Studio V의 작업 사례를 묶었습니다.</p>
+      </div>
+    </section>
+
+    <section class="section works-section">
+      <div class="works-top reveal">
+        <div>
+          <p class="section-kicker">Works</p>
+          <h2>어떤 촬영에 맞는지 먼저 보기</h2>
+        </div>
+        <div class="filter-bar" role="tablist" aria-label="포트폴리오 필터">
+          <button type="button" class="is-active" data-filter="all">All</button>
+          <button type="button" data-filter="film">Film & Drama</button>
+          <button type="button" data-filter="commercial">Commercial</button>
+          <button type="button" data-filter="event">Event & Live</button>
+        </div>
+      </div>
+      <div class="works-grid" data-works-grid></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div>
+      <strong>Studio V</strong>
+      <span>by KOCCA StudioCube</span>
+    </div>
+    <nav aria-label="하단 메뉴">
+      <a href="./index.html">Studio</a>
+      <a href="./tour.html">3D Tour</a>
+      <a href="./showreel.html">Showreel</a>
+      <a href="./contact.html">문의</a>
+    </nav>
+  </footer>
+
+  <script src="./assets/main.js?v=studio-v-grounded-1"></script>
+  <script src="./assets/works.js?v=studio-v-grounded-1"></script>
+</body>
+</html>

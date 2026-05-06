@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Showreel | Studio V</title>
+  <meta name="description" content="Studio V 쇼릴과 메이킹 영상. 촬영 장면, 현장 준비, 스테이지 테스트 클립.">
+  <link rel="stylesheet" href="./assets/styles.css?v=studio-v-grounded-1">
+  <link rel="icon" href="data:,">
+</head>
+<body data-page="showreel">
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <header class="site-header" data-header>
+    <a class="brand" href="./index.html" aria-label="Studio V 홈">
+      <strong>Studio V</strong>
+      <span>Virtual Production Stage</span>
+    </a>
+    <nav class="nav-links" aria-label="주요 메뉴">
+      <a href="./index.html">Studio</a>
+      <a href="./tour.html">3D Tour</a>
+      <a href="./portfolio.html">Portfolio</a>
+      <a href="./showreel.html" aria-current="page">Showreel</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
+    <a class="header-cta" href="./contact.html">Inquiry</a>
+    <button class="menu-button" type="button" data-menu-button aria-label="메뉴 열기">
+      <span></span>
+      <span></span>
+    </button>
+  </header>
+
+  <div class="mobile-menu" data-mobile-menu>
+    <a href="./index.html">Studio</a>
+    <a href="./tour.html">3D Tour</a>
+    <a href="./portfolio.html">Portfolio</a>
+    <a href="./showreel.html">Showreel</a>
+    <a href="./contact.html">Contact</a>
+  </div>
+
+  <main>
+    <section class="showreel-hero">
+      <video autoplay muted loop playsinline preload="metadata" poster="./assets/video/making-film-poster.jpg">
+        <source src="./assets/video/making-film-web.mp4" type="video/mp4">
+      </video>
+      <div class="showreel-hero-shade" aria-hidden="true"></div>
+      <div class="showreel-hero-copy reveal">
+        <p class="section-kicker">Showreel</p>
+        <h1>촬영 장면으로 먼저 봅니다.</h1>
+        <p>쇼릴, 메이킹, 스테이지 테스트 클립을 모았습니다.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#watch">Watch Reel</a>
+          <a class="button button-light" href="./contact.html">촬영 문의</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section showreel-watch" id="watch">
+      <div class="showreel-player reveal">
+        <video data-showreel-player controls playsinline preload="metadata" poster="./assets/video/showreel-poster.jpg">
+          <source src="./assets/video/showreel-web.mp4" type="video/mp4">
+        </video>
+      </div>
+      <aside class="showreel-detail reveal">
+        <p class="section-kicker">Selected Video</p>
+        <h2 data-showreel-title>Studio V Showreel 2025</h2>
+        <p data-showreel-copy>Studio V의 LED Wall 촬영 장면을 모은 메인 쇼릴입니다.</p>
+        <dl class="showreel-meta">
+          <div>
+            <dt>Type</dt>
+            <dd data-showreel-type>Showreel</dd>
+          </div>
+          <div>
+            <dt>Runtime</dt>
+            <dd data-showreel-runtime>2:16</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>Original assets</dd>
+          </div>
+        </dl>
+      </aside>
+    </section>
+
+    <section class="section showreel-library" aria-label="쇼릴 영상 목록">
+      <div class="works-top reveal">
+        <div>
+          <p class="section-kicker">Video Library</p>
+          <h2>쇼릴, 메이킹, 짧은 활용 클립</h2>
+        </div>
+        <p>대표 쇼릴과 현장 메이킹, 짧은 스테이지 테스트를 바로 재생할 수 있습니다.</p>
+      </div>
+
+      <div class="showreel-grid">
+        <button class="showreel-card is-active reveal" type="button" data-video-index="0">
+          <img src="./assets/video/showreel-poster.jpg" alt="" loading="lazy" decoding="async">
+          <span>Showreel / 2:16</span>
+          <strong>Studio V Showreel 2025</strong>
+        </button>
+        <button class="showreel-card reveal" type="button" data-video-index="1">
+          <img src="./assets/video/making-film-poster.jpg" alt="" loading="lazy" decoding="async">
+          <span>Making Film / 3:30</span>
+          <strong>Studio V Making Film</strong>
+        </button>
+        <button class="showreel-card reveal" type="button" data-video-index="2">
+          <img src="./assets/video/short1-poster.jpg" alt="" loading="lazy" decoding="async">
+          <span>Short Clip / 0:44</span>
+          <strong>Production Variables</strong>
+        </button>
+        <button class="showreel-card reveal" type="button" data-video-index="3">
+          <img src="./assets/video/short2-poster.jpg" alt="" loading="lazy" decoding="async">
+          <span>Stage Test / 0:47</span>
+          <strong>Mars Environment</strong>
+        </button>
+        <button class="showreel-card reveal" type="button" data-video-index="4">
+          <img src="./assets/video/short3-poster.jpg" alt="" loading="lazy" decoding="async">
+          <span>Stage Test / 0:48</span>
+          <strong>Cathedral Environment</strong>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div>
+      <strong>Studio V</strong>
+      <span>by KOCCA StudioCube</span>
+    </div>
+    <nav aria-label="하단 메뉴">
+      <a href="./tour.html">3D Tour</a>
+      <a href="./portfolio.html">Portfolio</a>
+      <a href="./contact.html">문의</a>
+    </nav>
+  </footer>
+
+  <script src="./assets/main.js?v=studio-v-grounded-1"></script>
+  <script src="./assets/showreel.js?v=studio-v-grounded-1"></script>
+</body>
+</html>
