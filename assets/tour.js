@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
+import { FBXLoader } from './vendor/loaders/FBXLoader.js';
 
 const canvas = document.getElementById('studioTour');
 const stage = document.querySelector('[data-tour-stage]');
@@ -17,11 +18,12 @@ const MAX_DPR = 1.35;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_DPR));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.14;
+renderer.toneMappingExposure = 0.96;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x181b1c);
 scene.fog = new THREE.Fog(0x181b1c, 72, 170);
+scene.environment = makeReflectionEnvironment();
 
 const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 420);
 camera.position.set(42, 26, 52);
@@ -74,6 +76,7 @@ const LED = {
   curved: 36.5,
   side: 3.5
 };
+LED.total = LED.flat + LED.curved + LED.side;
 LED.radius = LED.curved / Math.PI;
 LED.arcCenterX = 0;
 LED.arcCenterZ = -(STUDIO.l / 2 - LED.radius);
@@ -81,10 +84,17 @@ LED.arcCenterZ = -(STUDIO.l / 2 - LED.radius);
 const CEILING = {
   w: 21,
   d: 15,
-  y: 12.4,
+  y: 8.6,
   tile: 0.5,
   x: LED.arcCenterX,
   z: LED.arcCenterZ
+};
+
+const VEHICLE = {
+  length: 5.21,
+  width: 1.96,
+  height: 1.82,
+  source: './assets/models/mercedes-gls-580.fbx'
 };
 
 const studioGroup = new THREE.Group();
@@ -144,12 +154,89 @@ function makeFloorTexture(size) {
   return texture;
 }
 
+function makeReflectionEnvironment() {
+  const envCanvas = document.createElement('canvas');
+  envCanvas.width = 512;
+  envCanvas.height = 256;
+  const ctx = envCanvas.getContext('2d');
+  const base = ctx.createLinearGradient(0, 0, 0, envCanvas.height);
+  base.addColorStop(0, '#273236');
+  base.addColorStop(0.32, '#111719');
+  base.addColorStop(0.52, '#f0f3ef');
+  base.addColorStop(0.68, '#131918');
+  base.addColorStop(1, '#303532');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, envCanvas.width, envCanvas.height);
+
+  const ledBand = ctx.createLinearGradient(0, 0, envCanvas.width, 0);
+  ledBand.addColorStop(0, 'rgba(115,160,170,0.15)');
+  ledBand.addColorStop(0.42, 'rgba(235,244,244,0.58)');
+  ledBand.addColorStop(0.62, 'rgba(152,205,214,0.42)');
+  ledBand.addColorStop(1, 'rgba(18,24,26,0.18)');
+  ctx.fillStyle = ledBand;
+  ctx.fillRect(0, 114, envCanvas.width, 18);
+
+  const texture = new THREE.CanvasTexture(envCanvas);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function makeLEDMaterial(texture, intensity) {
+  if (texture.isVideoTexture) {
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      toneMapped: true
+    });
+    const grade = {
+      brightness: 0.78,
+      contrast: 1.36,
+      gamma: 1.12,
+      saturation: 1.12
+    };
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uLedBrightness = { value: grade.brightness };
+      shader.uniforms.uLedContrast = { value: grade.contrast };
+      shader.uniforms.uLedGamma = { value: grade.gamma };
+      shader.uniforms.uLedSaturation = { value: grade.saturation };
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        `
+        uniform float uLedBrightness;
+        uniform float uLedContrast;
+        uniform float uLedGamma;
+        uniform float uLedSaturation;
+
+        void main() {
+        `
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `
+        #ifdef USE_MAP
+          vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+          sampledDiffuseColor.rgb = pow( max( sampledDiffuseColor.rgb, vec3( 0.0 ) ), vec3( uLedGamma ) );
+          sampledDiffuseColor.rgb = ( sampledDiffuseColor.rgb - vec3( 0.5 ) ) * uLedContrast + vec3( 0.5 );
+          float ledLuma = dot( sampledDiffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) );
+          sampledDiffuseColor.rgb = mix( vec3( ledLuma ), sampledDiffuseColor.rgb, uLedSaturation );
+          sampledDiffuseColor.rgb *= uLedBrightness;
+          sampledDiffuseColor.rgb = clamp( sampledDiffuseColor.rgb, 0.0, 1.0 );
+          diffuseColor *= sampledDiffuseColor;
+        #endif
+        `
+      );
+    };
+    window.__studioVLedWallGrade = grade;
+    return material;
+  }
+
   return new THREE.MeshStandardMaterial({
     map: texture,
     emissiveMap: texture,
-    color: 0x071116,
-    emissive: new THREE.Color(0x65aebe),
+    color: texture.isVideoTexture ? 0xffffff : 0x071116,
+    emissive: new THREE.Color(texture.isVideoTexture ? 0xffffff : 0x65aebe),
     emissiveIntensity: intensity,
     metalness: 0.05,
     roughness: 0.7,
@@ -157,8 +244,84 @@ function makeLEDMaterial(texture, intensity) {
   });
 }
 
+function makeLedVideoTexture() {
+  const sources = [
+    './assets/video/260121-test01-videostitchstudio-web.mp4',
+    './assets/video/short2-web.mp4'
+  ];
+  const video = document.createElement('video');
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+  video.crossOrigin = 'anonymous';
+  window.__studioVLedWallVideo = video;
+
+  let sourceIndex = 0;
+  const playVideo = () => video.play().catch(() => {});
+  const loadSource = () => {
+    video.src = sources[sourceIndex];
+    window.__studioVLedWallVideoFile = sources[sourceIndex];
+    video.load();
+  };
+
+  video.addEventListener('canplay', playVideo);
+  video.addEventListener('error', () => {
+    if (sourceIndex < sources.length - 1) {
+      sourceIndex += 1;
+      loadSource();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) video.pause();
+    else playVideo();
+  });
+  canvas.addEventListener('pointerdown', playVideo, { once: true });
+
+  const texture = new THREE.VideoTexture(video);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  fitLedVideoTexture(texture, { width: 3000, height: 1000 });
+  video.addEventListener('loadedmetadata', () => {
+    fitLedVideoTexture(texture, { width: video.videoWidth || 3000, height: video.videoHeight || 1000 });
+  });
+
+  loadSource();
+  return texture;
+}
+
+function fitLedVideoTexture(texture, size) {
+  const wallAspect = LED.total / LED.h;
+  const videoAspect = size.width / Math.max(size.height, 1);
+  const fillScale = 1.05;
+  let repeatX = 1;
+  let repeatY = videoAspect / wallAspect;
+
+  if (repeatY > 1) {
+    repeatY = 1;
+    repeatX = wallAspect / videoAspect;
+  }
+
+  repeatX = THREE.MathUtils.clamp(repeatX / fillScale, 0.18, 1);
+  repeatY = THREE.MathUtils.clamp(repeatY / fillScale, 0.18, 1);
+  texture.repeat.set(repeatX, repeatY);
+  texture.offset.set((1 - repeatX) * 0.5, (1 - repeatY) * 0.5);
+  window.__studioVLedWallFit = {
+    wallAspect,
+    videoAspect,
+    repeatX,
+    repeatY,
+    mode: 'aspect-preserving scale'
+  };
+}
+
 const ledTex = makeGridTexture(512, 32, 'rgba(130,195,210,ALPHA)', '#05090c', 0.16);
 ledTex.repeat.set(18, 3.5);
+const ledVideoTex = makeLedVideoTexture();
 const ceilingTex = makeGridTexture(512, 24, 'rgba(145,205,215,ALPHA)', '#060a0c', 0.14);
 ceilingTex.repeat.set(8, 5);
 const floorTex = makeFloorTexture(512);
@@ -180,13 +343,40 @@ const materials = {
     opacity: 0.34,
     side: THREE.DoubleSide
   }),
-  led: makeLEDMaterial(ledTex, 0.56),
+  led: makeLEDMaterial(ledVideoTex, 1.18),
   ceilingTile: makeLEDMaterial(ceilingTex, 0.64),
   ledDark: new THREE.MeshStandardMaterial({ color: 0x0f181b, emissive: 0x17282d, emissiveIntensity: 0.85, roughness: 0.36 }),
   rail: new THREE.LineBasicMaterial({ color: 0xd8d0c2, transparent: true, opacity: 0.68 }),
   person: new THREE.MeshStandardMaterial({ color: 0xd6d1c4, roughness: 0.7 }),
   vehicle: new THREE.MeshStandardMaterial({ color: 0xced7d8, roughness: 0.58, metalness: 0.16 }),
-  tire: new THREE.MeshStandardMaterial({ color: 0x101214, roughness: 0.82 }),
+  vehicleBody: new THREE.MeshPhysicalMaterial({
+    color: 0xb8bdb9,
+    emissive: 0x0b0c0c,
+    emissiveIntensity: 0.02,
+    roughness: 0.16,
+    metalness: 0.56,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.10,
+    envMapIntensity: 2.05,
+    side: THREE.DoubleSide
+  }),
+  vehicleGlass: new THREE.MeshPhysicalMaterial({
+    color: 0x12181a,
+    emissive: 0x05090a,
+    emissiveIntensity: 0.10,
+    roughness: 0.06,
+    metalness: 0.04,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.08,
+    transmission: 0.04,
+    transparent: true,
+    opacity: 0.62,
+    envMapIntensity: 1.85,
+    side: THREE.DoubleSide
+  }),
+  vehicleTrim: new THREE.MeshStandardMaterial({ color: 0xaeb6b8, roughness: 0.18, metalness: 0.72, envMapIntensity: 1.55, side: THREE.DoubleSide }),
+  vehicleLamp: new THREE.MeshStandardMaterial({ color: 0xf6f0df, emissive: 0xf6efe2, emissiveIntensity: 0.34, roughness: 0.18, side: THREE.DoubleSide }),
+  tire: new THREE.MeshStandardMaterial({ color: 0x090a0a, roughness: 0.88, metalness: 0.02, side: THREE.DoubleSide }),
   camera: new THREE.MeshStandardMaterial({ color: 0x1b1d1f, roughness: 0.5, metalness: 0.2 }),
   ceiling: new THREE.MeshStandardMaterial({ color: 0x28383c, emissive: 0x192a2f, emissiveIntensity: 0.85, roughness: 0.44 }),
   matteBlack: new THREE.MeshStandardMaterial({ color: 0x111315, roughness: 0.88, metalness: 0.08 }),
@@ -219,6 +409,15 @@ function addLights() {
   const floorWash = new THREE.PointLight(0xf4eadc, 1.55, 78, 1.7);
   floorWash.position.set(0, 7.5, LED.arcCenterZ + 14);
   scene.add(floorWash);
+
+  const ledKickTarget = new THREE.Object3D();
+  ledKickTarget.position.set(3.8, 1.2, LED.arcCenterZ + 5.4);
+  scene.add(ledKickTarget);
+
+  const ledKick = new THREE.SpotLight(0xc9e6e9, 3.4, 56, Math.PI * 0.22, 0.62, 1.25);
+  ledKick.position.set(LED.arcCenterX, 4.2, LED.arcCenterZ - 1.6);
+  ledKick.target = ledKickTarget;
+  scene.add(ledKick);
 
   interactiveWash = new THREE.PointLight(0xd7e9eb, 0.0, 30, 2.0);
   interactiveWash.position.set(0, 3.2, LED.arcCenterZ + 11);
@@ -500,10 +699,58 @@ function addVehicle() {
   const base = scaleBase || new THREE.Vector3(LED.arcCenterX - 2, 0, LED.arcCenterZ + 5);
   const carX = base.x + 5.5;
   const carZ = base.z;
-  const L = 4.99;
-  const W = 1.97;
-  const H = 1.75;
+  const L = VEHICLE.length;
+  const W = VEHICLE.width;
+  const H = VEHICLE.height;
   const car = new THREE.Group();
+  const placeholder = new THREE.Group();
+  addVehiclePlaceholder(placeholder, L, W, H);
+  car.add(placeholder);
+  window.__studioVMercedesLoaded = false;
+  window.__studioVMercedesStatus = 'loading';
+
+  const loader = new FBXLoader();
+  loader.load(
+    VEHICLE.source,
+    (fbx) => {
+      const model = new THREE.Group();
+      const orientation = new THREE.Group();
+      orientation.add(fbx);
+      model.add(orientation);
+      prepareVehicleModel(fbx);
+      normalizeVehicleModel(model, orientation);
+      placeholder.removeFromParent();
+      car.add(model);
+      window.__studioVMercedesLoaded = true;
+      window.__studioVMercedesStatus = 'loaded';
+    },
+    (event) => {
+      if (event.total) window.__studioVMercedesProgress = event.loaded / event.total;
+    },
+    (error) => {
+      console.warn('Mercedes GLS FBX load failed; using scale placeholder.', error);
+      window.__studioVMercedesLoaded = false;
+      window.__studioVMercedesStatus = 'fallback';
+    }
+  );
+
+  car.position.set(carX, 0, carZ);
+  car.rotation.y = Math.atan2(LED.arcCenterZ - carZ, LED.arcCenterX - carX);
+  scene.add(car);
+
+  const label = makeLabel('Mercedes GLS scale L 5.21m / H 1.82m', 4.55, 0.40);
+  label.position.set(carX, 2.95, carZ + 1.8);
+  scene.add(label);
+
+  car.updateMatrixWorld(true);
+  const frontRight = car.localToWorld(new THREE.Vector3(L / 2, 0, W / 2 + 0.38));
+  const rearRight = car.localToWorld(new THREE.Vector3(-L / 2, 0, W / 2 + 0.38));
+  const rulerMat = new THREE.LineBasicMaterial({ color: 0xffcc55, transparent: true, opacity: 0.95 });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([rearRight.clone().setY(0.10), frontRight.clone().setY(0.10)]), rulerMat));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([frontRight.clone().setY(0), frontRight.clone().setY(H)]), rulerMat));
+}
+
+function addVehiclePlaceholder(car, L, W, H) {
   const body = new THREE.Mesh(new THREE.BoxGeometry(L, 0.82, W), materials.vehicle);
   body.position.y = 0.42;
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(L * 0.68, 0.62, W * 0.9), materials.vehicle);
@@ -527,20 +774,157 @@ function addVehicle() {
     wheel.position.set(x, y, z);
     car.add(wheel);
   });
-  car.position.set(carX, 0, carZ);
-  car.rotation.y = Math.atan2(LED.arcCenterZ - carZ, LED.arcCenterX - carX);
-  scene.add(car);
+}
 
-  const label = makeLabel('Vehicle scale L 4.99m / H 1.75m', 4.1, 0.40);
-  label.position.set(carX, 2.9, carZ + 1.8);
-  scene.add(label);
+function selectVehicleMaterial(mesh) {
+  const materialName = Array.isArray(mesh.material)
+    ? mesh.material.map((material) => material?.name || '').join(' ')
+    : mesh.material?.name || '';
+  const token = `${mesh.name || ''} ${materialName}`.toLowerCase();
+  return selectVehicleMaterialByToken(token);
+}
 
-  car.updateMatrixWorld(true);
-  const frontRight = car.localToWorld(new THREE.Vector3(L / 2, 0, W / 2 + 0.38));
-  const rearRight = car.localToWorld(new THREE.Vector3(-L / 2, 0, W / 2 + 0.38));
-  const rulerMat = new THREE.LineBasicMaterial({ color: 0xffcc55, transparent: true, opacity: 0.95 });
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([rearRight.clone().setY(0.10), frontRight.clone().setY(0.10)]), rulerMat));
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([frontRight.clone().setY(0), frontRight.clone().setY(H)]), rulerMat));
+function selectVehicleMaterialByToken(token) {
+  if (/tire|tyre|rubber/.test(token)) return materials.tire;
+  if (/lamp|light|head|tail/.test(token)) return materials.vehicleLamp;
+  if (/glass|window|windshield|screen/.test(token)) return materials.vehicleGlass;
+  if (/rim|wheel|chrome|metal|grill|grille|trim|star|logo/.test(token)) return materials.vehicleTrim;
+  return materials.vehicleBody;
+}
+
+function prepareVehicleModel(root) {
+  const removable = [];
+  const meshes = [];
+  const materialCounts = {
+    body: 0,
+    glass: 0,
+    trim: 0,
+    lamp: 0,
+    tire: 0
+  };
+  const sourceMaterials = [];
+  root.traverse((child) => {
+    if (child.isCamera || child.isLight) removable.push(child);
+    if (!child.isMesh) return;
+    meshes.push(child);
+    child.castShadow = false;
+    child.receiveShadow = false;
+    if (child.geometry && !child.geometry.attributes.normal) {
+      child.geometry.computeVertexNormals();
+    }
+  });
+
+  const countMaterial = (material) => {
+    if (material === materials.vehicleGlass) materialCounts.glass += 1;
+    else if (material === materials.vehicleTrim) materialCounts.trim += 1;
+    else if (material === materials.vehicleLamp) materialCounts.lamp += 1;
+    else if (material === materials.tire) materialCounts.tire += 1;
+    else materialCounts.body += 1;
+  };
+
+  meshes.forEach((child) => {
+    const meshName = child.name || 'mesh';
+    if (Array.isArray(child.material)) {
+      child.material = child.material.map((material, index) => {
+        const token = `${meshName} ${material?.name || ''}`.toLowerCase();
+        const selected = selectVehicleMaterialByToken(token);
+        sourceMaterials.push({
+          mesh: meshName,
+          slot: index,
+          source: material?.name || '',
+          target: selected === materials.vehicleGlass ? 'glass'
+            : selected === materials.vehicleTrim ? 'trim'
+              : selected === materials.vehicleLamp ? 'lamp'
+                : selected === materials.tire ? 'tire'
+                  : 'silver body'
+        });
+        countMaterial(selected);
+        return selected;
+      });
+      return;
+    }
+
+    const originalName = child.material?.name || '';
+    const selected = selectVehicleMaterial(child);
+    sourceMaterials.push({
+      mesh: meshName,
+      slot: 0,
+      source: originalName,
+      target: selected === materials.vehicleGlass ? 'glass'
+        : selected === materials.vehicleTrim ? 'trim'
+          : selected === materials.vehicleLamp ? 'lamp'
+            : selected === materials.tire ? 'tire'
+              : 'silver body'
+    });
+    child.material = selected;
+    countMaterial(selected);
+  });
+  removable.forEach((child) => child.parent?.remove(child));
+  window.__studioVMercedesMaterialCounts = materialCounts;
+  window.__studioVMercedesSourceMaterials = sourceMaterials;
+}
+
+function normalizeVehicleModel(root, orientation = root) {
+  const debug = {};
+  root.position.set(0, 0, 0);
+  root.scale.set(1, 1, 1);
+  orientation.rotation.set(0, 0, 0);
+  root.updateMatrixWorld(true);
+  let box = new THREE.Box3().setFromObject(root);
+  let size = box.getSize(new THREE.Vector3());
+  debug.before = { x: size.x, y: size.y, z: size.z };
+
+  const smallestAxis = getAxisBySize(size, 'min');
+  if (smallestAxis === 'z') {
+    orientation.rotation.x -= Math.PI / 2;
+  } else if (smallestAxis === 'x') {
+    orientation.rotation.z += Math.PI / 2;
+  }
+  root.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(root);
+  size = box.getSize(new THREE.Vector3());
+  debug.afterUp = { x: size.x, y: size.y, z: size.z };
+
+  const lengthAxis = getAxisBySize(size, 'max');
+  if (lengthAxis === 'z') {
+    orientation.rotation.y += Math.PI / 2;
+  } else if (lengthAxis === 'y') {
+    orientation.rotation.z -= Math.PI / 2;
+  }
+  if (lengthAxis !== 'x') {
+    root.updateMatrixWorld(true);
+    box = new THREE.Box3().setFromObject(root);
+    size = box.getSize(new THREE.Vector3());
+  }
+  debug.afterLength = { x: size.x, y: size.y, z: size.z };
+
+  const scaleX = VEHICLE.length / Math.max(size.x, 0.001);
+  const scaleY = VEHICLE.height / Math.max(size.y, 0.001);
+  const scaleZ = VEHICLE.width / Math.max(size.z, 0.001);
+  root.scale.set(scaleX, scaleY, scaleZ);
+  root.updateMatrixWorld(true);
+
+  box = new THREE.Box3().setFromObject(root);
+  let center = box.getCenter(new THREE.Vector3());
+  root.position.x -= center.x;
+  root.position.y -= box.min.y;
+  root.position.z -= center.z;
+  root.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(root);
+  size = box.getSize(new THREE.Vector3());
+  debug.final = { x: size.x, y: size.y, z: size.z };
+  debug.scale = { x: scaleX, y: scaleY, z: scaleZ };
+  window.__studioVMercedesBox = debug;
+}
+
+function getAxisBySize(size, mode) {
+  const axes = [
+    ['x', size.x],
+    ['y', size.y],
+    ['z', size.z]
+  ];
+  axes.sort((a, b) => mode === 'min' ? a[1] - b[1] : b[1] - a[1]);
+  return axes[0][0];
 }
 
 function addCameraRig() {
@@ -838,14 +1222,13 @@ function animate() {
   pointerState.x += (pointerState.targetX - pointerState.x) * 0.08;
   pointerState.y += (pointerState.targetY - pointerState.y) * 0.08;
   if (interactiveWash) {
-    interactiveWash.intensity += ((pointerState.active ? 1.25 : 0.25) - interactiveWash.intensity) * 0.06;
+    interactiveWash.intensity += ((pointerState.active ? 0.88 : 0.18) - interactiveWash.intensity) * 0.06;
     interactiveWash.position.x = pointerState.x * 8;
     interactiveWash.position.y = 3.8 - pointerState.y * 1.4;
     interactiveWash.position.z = LED.arcCenterZ + 11 + pointerState.y * 4;
   }
-  ledTex.offset.x += (pointerState.x * 0.001 - ledTex.offset.x) * 0.035;
   ceilingTex.offset.y += (pointerState.y * 0.001 - ceilingTex.offset.y) * 0.035;
-  renderer.toneMappingExposure += ((pointerState.active ? 1.20 : 1.12) - renderer.toneMappingExposure) * 0.035;
+  renderer.toneMappingExposure += ((pointerState.active ? 1.00 : 0.94) - renderer.toneMappingExposure) * 0.035;
   if (transitionFrames > 0) {
     camera.position.lerp(targetCamera, 0.065);
     controls.target.lerp(targetLook, 0.065);
